@@ -71,6 +71,30 @@ function runCommand(commandName: string, document: vs.TextDocument, implFunc: ()
     }
 }
 
+function isNewline(text) {
+    return text.startsWith('\n') || text.startsWith('\r\n');
+}
+
+function getLast3(range: vs.Range): vs.Range {
+    let line = range.start.line;
+    return new vs.Range(line, range.end.character-3, line, range.end.character);   
+}
+
+function isJsDocComment(e: vs.TextDocumentChangeEvent) {
+    const change = e.contentChanges[0];
+    if (isNewline(change.text)) {
+        let range = e.contentChanges[0].range;
+        if (range.end.character > 2) {            
+            let last3 = e.document.getText(getLast3(range));
+
+            if (last3 === '/**') {
+                return true;
+            }
+        }
+        return false;
+    } 
+}
+
 export function activate(context: vs.ExtensionContext): void {
     context.subscriptions.push(vs.commands.registerTextEditorCommand("docthis.documentThis", (editor, edit) => {
         const commandName = "Document This";
@@ -103,4 +127,21 @@ export function activate(context: vs.ExtensionContext): void {
             documenter.traceNode(editor, edit);
         });
     }));
+    
+    vs.workspace.onDidChangeTextDocument((e) => {
+        if (isJsDocComment(e)) {
+            let editor = vs.window.activeTextEditor; 
+            editor.edit((edit) => {
+                let range = e.contentChanges[0].range;
+                let jsDocStartRange = getLast3(range);
+                
+                //edit.delete(jsDocStartRange);
+                //edit.delete(range);
+                documenter.documentThis(editor, edit, "Document This");
+            }).then((e) => {
+                console.log(e);  
+            })
+            
+        }
+    });
 }
